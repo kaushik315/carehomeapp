@@ -1,6 +1,12 @@
-// Idempotent local-dev seed: the Linkfield tenant, its shift catalogue,
-// and the staff/availability/demand from prototypes/rota-builder.jsx's
-// SEED_STAFF, so /rota has real data to build a rota against.
+// First-run seed: the Linkfield tenant, its shift catalogue, and the
+// staff/availability/demand from prototypes/rota-builder.jsx's SEED_STAFF,
+// so /rota has real data to build a rota against.
+//
+// Runs on every deploy (see the vercel-build script) but seeds only ONCE:
+// if the tenant already exists it stops immediately. Availability, cover
+// numbers and contracts are edited in the app, and a redeploy must never
+// reset them back to these defaults. Pass --force to seed anyway.
+//
 // Run with: npm run db:seed
 import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db/client";
@@ -48,6 +54,14 @@ function availabilityFor(name: string, role: string, day: number) {
 const DEMAND = { early: 3, mid: 1, back: 3, night: 1, sleepover: 1 };
 
 async function main() {
+  const force = process.argv.includes("--force");
+
+  const existingTenant = await db.select().from(tenants).where(eq(tenants.slug, TENANT_SLUG)).limit(1);
+  if (existingTenant.length && !force) {
+    console.log(`tenant "${TENANT_SLUG}" already seeded — leaving existing data alone.`);
+    process.exit(0);
+  }
+
   const [tenant] = await db
     .insert(tenants)
     .values({ name: "Linkfield Residential Ltd", slug: TENANT_SLUG })

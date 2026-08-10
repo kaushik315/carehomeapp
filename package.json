@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "vercel-build": "npm run db:migrate && npm run db:seed && next build",
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "tsx --env-file-if-exists=.env.local --env-file-if-exists=.env db/migrate.ts",
