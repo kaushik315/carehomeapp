@@ -1,0 +1,37 @@
+{
+  "name": "carehomeapp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:migrate": "tsx --env-file-if-exists=.env.local --env-file-if-exists=.env db/migrate.ts",
+    "db:seed": "tsx --env-file-if-exists=.env.local --env-file-if-exists=.env db/seed.ts",
+    "db:studio": "tsx --env-file-if-exists=.env.local --env-file-if-exists=.env node_modules/.bin/drizzle-kit studio",
+    "hash-password": "tsx scripts/hash-password.ts"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "drizzle-orm": "^0.45.2",
+    "lucide-react": "^1.31.0",
+    "next": "16.3.0",
+    "postgres": "^3.4.9",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.10",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.0",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.12",
+    "typescript": "^5"
+  }
+}
