@@ -54,6 +54,7 @@ export default function RotaBuilderPage() {
   const [staffPanel, setStaffPanel] = useState(false);
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   const monday = useMemo(() => mondayOf(anchor), [anchor]);
   const wk = weekKey(monday);
@@ -74,12 +75,18 @@ export default function RotaBuilderPage() {
     [],
   );
 
+  const retryInitialLoad = useCallback(() => {
+    setLoadError("");
+    loadConfig().catch((e) => setLoadError(e instanceof Error ? e.message : "Could not load the rota."));
+    loadWeek(wk).catch((e) => setLoadError(e instanceof Error ? e.message : "Could not load the rota."));
+  }, [loadConfig, loadWeek, wk]);
+
   useEffect(() => {
-    loadConfig().catch((e) => flash(e.message));
-  }, [loadConfig, flash]);
+    loadConfig().catch((e) => setLoadError(e instanceof Error ? e.message : "Could not load the rota."));
+  }, [loadConfig]);
   useEffect(() => {
-    loadWeek(wk).catch((e) => flash(e.message));
-  }, [wk, loadWeek, flash]);
+    loadWeek(wk).catch((e) => setLoadError(e instanceof Error ? e.message : "Could not load the rota."));
+  }, [wk, loadWeek]);
 
   const staff = useMemo(
     () =>
@@ -192,7 +199,7 @@ export default function RotaBuilderPage() {
     return out;
   }, [staff, week, shiftBy]);
 
-  if (!config || !week) return <Splash />;
+  if (!config || !week) return <Splash error={loadError} onRetry={retryInitialLoad} />;
 
   return (
     <div style={{ minHeight: "100vh", background: T.paper, fontFamily: SANS, color: T.ink }}>
@@ -754,10 +761,25 @@ function IconBtn({ children, onClick, label: l }: { children: React.ReactNode; o
 function Label({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 10, letterSpacing: ".16em", color: T.muted, fontWeight: 600, textTransform: "uppercase", marginBottom: 7 }}>{children}</div>;
 }
-function Splash() {
+function Splash({ error, onRetry }: { error?: string; onRetry?: () => void }) {
   return (
     <div style={{ minHeight: "100vh", background: T.paper, fontFamily: SANS, color: T.muted, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      Loading…
+      {error ? (
+        <div style={{ maxWidth: 420, textAlign: "center", padding: 24 }}>
+          <div style={{ color: T.alert, fontWeight: 600, marginBottom: 8 }}>Could not load the rota</div>
+          <div style={{ fontSize: 13, color: T.body, marginBottom: 16, lineHeight: 1.5 }}>{error}</div>
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: T.accent, color: "#fff", fontSize: 14, fontWeight: 600, fontFamily: SANS, cursor: "pointer" }}
+            >
+              Try again
+            </button>
+          )}
+        </div>
+      ) : (
+        "Loading…"
+      )}
     </div>
   );
 }
