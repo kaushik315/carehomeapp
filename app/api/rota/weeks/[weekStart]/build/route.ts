@@ -31,6 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ wee
       contractHours: Number(s.contractHours),
       maxDays: s.maxDays,
       schedulingMode: s.schedulingMode as StaffMember["schedulingMode"],
+      eligibleShifts: (s.eligibleShifts as string[]) ?? [],
       isActive: s.isActive,
     }));
 
