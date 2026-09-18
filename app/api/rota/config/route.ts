@@ -57,6 +57,7 @@ export async function GET() {
         contractHours: Number(s.contractHours),
         maxDays: s.maxDays,
         schedulingMode: s.schedulingMode as RotaConfig["staff"][number]["schedulingMode"],
+        eligibleShifts: (s.eligibleShifts as string[]) ?? [],
         isActive: s.isActive,
       })),
       availability,
