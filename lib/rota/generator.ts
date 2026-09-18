@@ -2,7 +2,7 @@
 // shapes. Behaviour is unchanged: hard rules are never broken — an
 // unfillable slot is left open and reported, never fudged. Soft rules are
 // scored, lower is better. See CLAUDE.md "Rota generator — how it works".
-import type { AssignmentMap, AssignmentValue, AvailabilityMap, DemandMap, ShiftDef, StaffMember, UnfilledEntry } from "@/lib/rota/types";
+import type { AssignmentMap, AssignmentValue, AvailabilityMap, DemandMap, FixedPatternMap, ShiftDef, StaffMember, UnfilledEntry } from "@/lib/rota/types";
 
 function mulberry32(seed: number) {
   let s = seed | 0;
@@ -46,7 +46,8 @@ export interface GenerateRotaInput {
   shifts: ShiftDef[];
   availability: AvailabilityMap;
   demand: DemandMap;
-  locked: AssignmentMap; // only the cells to preserve as-is
+  locked: AssignmentMap; // cells to preserve as-is — leave overrides, manual locks
+  fixedPatterns: FixedPatternMap; // scheduling_mode = 'fixed' staff's weekly pattern
   seed: number;
 }
 
@@ -55,11 +56,30 @@ export interface GenerateRotaResult {
   unfilled: UnfilledEntry[];
 }
 
-export function generateRota({ staff, shifts, availability, demand, locked, seed }: GenerateRotaInput): GenerateRotaResult {
+export function generateRota({ staff, shifts, availability, demand, locked, fixedPatterns, seed }: GenerateRotaInput): GenerateRotaResult {
   const rnd = mulberry32(seed);
   const shiftBy = Object.fromEntries(shifts.map((s) => [s.key, s]));
-  const assignments: AssignmentMap = { ...locked };
   const unfilled: UnfilledEntry[] = [];
+
+  // preAssigned = locked cells (leave overrides, manual locks) plus each
+  // fixed-mode staff member's pattern for any day not already locked. Both
+  // are protected from the solver and count toward cover the same way.
+  const preAssigned: AssignmentMap = { ...locked };
+  staff.forEach((s) => {
+    if (s.schedulingMode !== "fixed") return;
+    for (let day = 0; day < 7; day++) {
+      const key = `${s.id}|${day}`;
+      if (preAssigned[key]) continue; // a leave override wins over the pattern
+      const pattern = fixedPatterns[key];
+      if (!pattern) continue;
+      preAssigned[key] =
+        pattern.kind === "shift"
+          ? { kind: "shift", shiftKey: pattern.shiftKey!, sleepover: false, locked: false }
+          : { kind: "code", code: pattern.code!, locked: false };
+    }
+  });
+
+  const assignments: AssignmentMap = { ...preAssigned };
 
   const state: Record<string, StaffState> = {};
   staff.forEach((s) => {
@@ -78,12 +98,12 @@ export function generateRota({ staff, shifts, availability, demand, locked, seed
     st.intervals.push([absStart(day, sh), absEnd(day, sh) + (a.sleepover ? 8 : 0)]);
   };
 
-  Object.entries(locked).forEach(([k, a]) => {
+  Object.entries(preAssigned).forEach(([k, a]) => {
     const [staffId, day] = k.split("|");
     noteExisting(staffId, Number(day), a);
   });
 
-  const isLocked = (staffId: string, day: number) => Boolean(locked[`${staffId}|${day}`]);
+  const isLocked = (staffId: string, day: number) => Boolean(preAssigned[`${staffId}|${day}`]);
 
   function reject(s: StaffMember, day: number, sh: ShiftDef): string | null {
     const st = state[s.id];
@@ -125,7 +145,7 @@ export function generateRota({ staff, shifts, availability, demand, locked, seed
   for (let day = 0; day < 7; day++) {
     shifts.forEach((sh) => {
       const need = demand[day]?.[sh.key] || 0;
-      const already = Object.entries(locked).filter(([k, a]) => {
+      const already = Object.entries(preAssigned).filter(([k, a]) => {
         const [, d] = k.split("|");
         return Number(d) === day && a.kind === "shift" && a.shiftKey === sh.key;
       }).length;
@@ -133,7 +153,8 @@ export function generateRota({ staff, shifts, availability, demand, locked, seed
     });
   }
 
-  const pool = (day: number, sh: ShiftDef) => staff.filter((s) => s.isActive && !s.officeHours && !reject(s, day, sh)).length;
+  const pool = (day: number, sh: ShiftDef) =>
+    staff.filter((s) => s.isActive && s.schedulingMode === "generated" && !reject(s, day, sh)).length;
   slots.sort((a, b) => {
     const scarcity = pool(a.day, a.sh) - pool(b.day, b.sh);
     if (scarcity !== 0) return scarcity;
@@ -144,7 +165,7 @@ export function generateRota({ staff, shifts, availability, demand, locked, seed
     const reasons: Record<string, number> = {};
     const candidates: { s: StaffMember; sc: number }[] = [];
     staff.forEach((s) => {
-      if (!s.isActive || s.officeHours) return;
+      if (!s.isActive || s.schedulingMode !== "generated") return;
       const why = reject(s, day, sh);
       if (why) {
         reasons[why] = (reasons[why] || 0) + 1;
@@ -174,6 +195,7 @@ export function generateRota({ staff, shifts, availability, demand, locked, seed
     if (need <= 0) continue;
 
     const eligible = staff.filter((s) => {
+      if (s.schedulingMode !== "generated") return false;
       if (isLocked(s.id, day)) return false;
       const a = assignments[`${s.id}|${day}`];
       if (!a || a.kind !== "shift" || a.sleepover) return false;
@@ -196,16 +218,14 @@ export function generateRota({ staff, shifts, availability, demand, locked, seed
     }
   }
 
-  // office-hours staff and days off
+  // days off — everyone still on 'generated' who wasn't assigned a shift.
+  // 'fixed' staff were already filled from their pattern above; 'manual'
+  // staff are left blank for Sumy to fill in by hand.
   staff.forEach((s) => {
+    if (s.schedulingMode === "manual") return;
     for (let day = 0; day < 7; day++) {
       const key = `${s.id}|${day}`;
       if (assignments[key]) continue;
-      const av = availability[key] || { mode: "any" as const, shifts: [] };
-      if (s.officeHours && day < 5 && av.mode !== "off") {
-        assignments[key] = { kind: "code", code: "IN", locked: false };
-        continue;
-      }
       assignments[key] = { kind: "code", code: "D/O", locked: false };
     }
   });

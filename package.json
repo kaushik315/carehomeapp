@@ -8,6 +8,7 @@
     "vercel-build": "npm run db:migrate && npm run db:seed && next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "tsx --test lib/rota/generator.test.ts",
     "db:migrate": "tsx --env-file-if-exists=.env.local --env-file-if-exists=.env db/migrate.ts",
     "db:seed": "tsx --env-file-if-exists=.env.local --env-file-if-exists=.env db/seed.ts",
     "db:studio": "tsx --env-file-if-exists=.env.local --env-file-if-exists=.env node_modules/.bin/drizzle-kit studio",
