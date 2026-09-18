@@ -801,6 +801,30 @@ function StaffPanel({
                   ))}
                 </div>
               </div>
+              <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <span style={{ fontSize: 9.5, letterSpacing: ".12em", color: T.muted, textTransform: "uppercase" }}>Can work</span>
+                {config.shifts.map((sh) => {
+                  const on = s.eligibleShifts.includes(sh.key);
+                  return (
+                    <button
+                      key={sh.key}
+                      onClick={() =>
+                        updateStaff(s.id, {
+                          eligibleShifts: on ? s.eligibleShifts.filter((k) => k !== sh.key) : [...s.eligibleShifts, sh.key],
+                        })
+                      }
+                      style={{
+                        fontFamily: MONO, fontSize: 10, padding: "4px 7px", borderRadius: 5, cursor: "pointer",
+                        border: `1px solid ${on ? T.night : T.ruleSoft}`,
+                        background: on ? T.night : T.surface,
+                        color: on ? "#fff" : T.muted,
+                      }}
+                    >
+                      {shortTime(sh.start)}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </div>
