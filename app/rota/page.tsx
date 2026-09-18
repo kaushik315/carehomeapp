@@ -697,7 +697,15 @@ function StaffPanel({
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 560 }}>{s.name}</div>
-                  <div style={{ fontSize: 10, letterSpacing: ".1em", color: T.muted, textTransform: "uppercase" }}>{s.role}</div>
+                  <select
+                    value={s.role}
+                    onChange={(e) => updateStaff(s.id, { role: e.target.value })}
+                    style={{ fontSize: 10, letterSpacing: ".1em", color: T.muted, textTransform: "uppercase", border: "none", background: "transparent", padding: 0, marginTop: 2, cursor: "pointer" }}
+                  >
+                    {ROLES.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
                 </div>
                 <button
                   onClick={() => updateStaff(s.id, { isActive: !s.isActive })}
@@ -709,12 +717,21 @@ function StaffPanel({
               <div style={{ display: "flex", gap: 14, marginTop: 9, alignItems: "center", flexWrap: "wrap" }}>
                 <Num label="Contract hours" value={s.contractHours} onChange={(v) => updateStaff(s.id, { contractHours: v })} step={2.5} />
                 <Num label="Max days" value={s.maxDays} onChange={(v) => updateStaff(s.id, { maxDays: v })} step={1} />
-                <button
-                  onClick={() => updateStaff(s.id, { officeHours: !s.officeHours })}
-                  style={{ fontSize: 11.5, padding: "5px 9px", borderRadius: 6, cursor: "pointer", border: `1px solid ${s.officeHours ? T.accent : T.rule}`, background: s.officeHours ? T.accentBg : T.surface, color: s.officeHours ? T.accent : T.muted }}
-                >
-                  Office hours
-                </button>
+                <div style={{ display: "inline-flex", borderRadius: 6, overflow: "hidden", border: `1px solid ${T.rule}` }}>
+                  {(["generated", "fixed", "manual"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => updateStaff(s.id, { schedulingMode: mode })}
+                      style={{
+                        fontSize: 10.5, padding: "5px 8px", cursor: "pointer", border: "none", fontFamily: SANS,
+                        background: s.schedulingMode === mode ? T.accent : T.surface,
+                        color: s.schedulingMode === mode ? "#fff" : T.body,
+                      }}
+                    >
+                      {mode === "generated" ? "Generated" : mode === "fixed" ? "Fixed pattern" : "Manual"}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           ))}
