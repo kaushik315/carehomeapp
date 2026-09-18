@@ -43,7 +43,7 @@ export const rotaStaff = pgTable(
     role: text("role").notNull(),
     contractHours: numeric("contract_hours", { precision: 5, scale: 2 }).notNull().default("37.5"),
     maxDays: smallint("max_days").notNull().default(5),
-    officeHours: boolean("office_hours").notNull().default(false),
+    schedulingMode: text("scheduling_mode").notNull().default("generated"),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -58,6 +58,20 @@ export const rotaAvailability = pgTable(
     dayOfWeek: smallint("day_of_week").notNull(),
     mode: text("mode").notNull().default("any"), // any | shifts | off
     shiftKeys: jsonb("shift_keys").notNull().default([]),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.staffId, t.dayOfWeek)],
+);
+
+export const rotaFixedPatterns = pgTable(
+  "rota_fixed_patterns",
+  {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+    staffId: uuid("staff_id").notNull().references(() => rotaStaff.id),
+    dayOfWeek: smallint("day_of_week").notNull(),
+    kind: text("kind").notNull(), // shift | code
+    shiftKey: text("shift_key"),
+    code: text("code"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [unique().on(t.staffId, t.dayOfWeek)],
