@@ -18,6 +18,7 @@ export interface StaffMember {
   contractHours: number;
   maxDays: number;
   schedulingMode: SchedulingMode;
+  eligibleShifts: string[];
   isActive: boolean;
 }
 
