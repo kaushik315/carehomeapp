@@ -47,6 +47,21 @@ npm run db:migrate && npm run db:seed && next build
 If `DATABASE_URL` is missing or the database is unreachable, the build
 fails with that reason rather than deploying an app that cannot work.
 
+## One-off manual steps
+
+Most schema changes are fully handled by `db:migrate`. One migration isn't:
+
+- **`0003_rota_scheduling_mode.sql`** adds a `dom` shift definition's worth
+  of scheduling (09:00–13:00) that Gail's fixed pattern needs, but there's
+  no admin UI for shift definitions yet. After this migration has run, run
+  once against the database:
+
+  ```sql
+  INSERT INTO rota_shift_definitions (tenant_id, key, name, start_time, end_time, sort_order)
+  SELECT id, 'dom', 'Dom', '09:00', '13:00', 4 FROM tenants WHERE slug = 'linkfield'
+  ON CONFLICT (tenant_id, key) DO NOTHING;
+  ```
+
 ## On-prem (the actual target — see CLAUDE.md)
 
 Vercel is convenient for previewing, but the plan is Docker Compose on a
