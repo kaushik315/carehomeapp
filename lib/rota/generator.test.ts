@@ -4,6 +4,7 @@ import { generateRota } from "./generator";
 import type { ShiftDef, StaffMember } from "./types";
 
 const EARLY: ShiftDef = { key: "early", name: "Early", start: "07:00", end: "15:00" };
+const NIGHT: ShiftDef = { key: "night", name: "Night", start: "21:00", end: "07:00" };
 
 function staffMember(overrides: Partial<StaffMember> & { id: string }): StaffMember {
   return {
@@ -13,6 +14,7 @@ function staffMember(overrides: Partial<StaffMember> & { id: string }): StaffMem
     maxDays: 5,
     isActive: true,
     schedulingMode: "generated",
+    eligibleShifts: ["early"],
     ...overrides,
   };
 }
@@ -75,4 +77,34 @@ test("a locked leave override wins over a fixed-mode staff member's pattern for 
     seed: 1,
   });
   assert.deepEqual(result.assignments["f|2"], { kind: "code", code: "AL", locked: true });
+});
+
+test("a staff member without night in eligibleShifts is never assigned a night shift", () => {
+  const result = generateRota({
+    staff: [staffMember({ id: "a", eligibleShifts: ["early"] })],
+    shifts: [NIGHT],
+    availability: {},
+    demand: { 0: { night: 1 } },
+    locked: {},
+    fixedPatterns: {},
+    seed: 1,
+  });
+  assert.equal(result.assignments["a|0"].kind, "code");
+  assert.equal(result.unfilled.length, 1);
+  assert.equal(result.unfilled[0].reasons["not eligible for this shift"], 1);
+});
+
+test("a night-only staff member is rejected from every non-night shift", () => {
+  const result = generateRota({
+    staff: [staffMember({ id: "n", eligibleShifts: ["night"] })],
+    shifts: [EARLY],
+    availability: {},
+    demand: { 0: { early: 1 } },
+    locked: {},
+    fixedPatterns: {},
+    seed: 1,
+  });
+  assert.equal(result.assignments["n|0"].kind, "code");
+  assert.equal(result.unfilled.length, 1);
+  assert.equal(result.unfilled[0].reasons["not eligible for this shift"], 1);
 });

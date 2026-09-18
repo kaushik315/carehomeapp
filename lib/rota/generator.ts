@@ -108,6 +108,7 @@ export function generateRota({ staff, shifts, availability, demand, locked, fixe
   function reject(s: StaffMember, day: number, sh: ShiftDef): string | null {
     const st = state[s.id];
     if (isLocked(s.id, day) || st.byDay[day] !== undefined) return "already on that day";
+    if (!s.eligibleShifts.includes(sh.key)) return "not eligible for this shift";
     const av = availability[`${s.id}|${day}`] || { mode: "any" as const, shifts: [] };
     if (av.mode === "off") return "not available";
     if (av.mode === "shifts" && !av.shifts.includes(sh.key)) return "does not work this shift";
@@ -132,8 +133,6 @@ export function generateRota({ staff, shifts, availability, demand, locked, fixe
     const contract = s.contractHours || 37.5;
     sc -= (contract - st.hours) * 2.2;
     if (av.mode === "shifts" && av.shifts.includes(sh.key)) sc -= 6;
-    if (sh.key === "night" && s.role === "WCO") sc -= 8;
-    if (sh.key === "night" && (s.role === "Manager" || s.role === "Deputy")) sc += 14;
     if (st.byDay[day - 1] === sh.key) sc -= 4;
     if (day >= 5) sc += st.weekend * 3;
     if (s.role === "BCO") sc += 4;
