@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { withTenant } from "@/lib/db/client";
 import { getDefaultTenant } from "@/lib/rota/tenant";
-import { rotaShiftDefinitions, rotaStaff, rotaAvailability, rotaDemand, rotaWeeks, rotaAssignments } from "@/db/schema/rota";
+import { rotaShiftDefinitions, rotaStaff, rotaAvailability, rotaDemand, rotaWeeks, rotaAssignments, rotaFixedPatterns } from "@/db/schema/rota";
 import { generateRota } from "@/lib/rota/generator";
-import type { AssignmentMap, AvailabilityMap, DemandMap, ShiftDef, StaffMember } from "@/lib/rota/types";
+import type { AssignmentMap, AvailabilityMap, DemandMap, FixedPatternMap, ShiftDef, StaffMember } from "@/lib/rota/types";
 
 function isValidWeekStart(weekStart: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(weekStart);
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ wee
       role: s.role,
       contractHours: Number(s.contractHours),
       maxDays: s.maxDays,
-      officeHours: s.officeHours,
+      schedulingMode: s.schedulingMode as StaffMember["schedulingMode"],
       isActive: s.isActive,
     }));
 
@@ -47,6 +47,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ wee
       demand[row.dayOfWeek][row.shiftKey] = row.headcount;
     }
 
+    const fixedPatternRows = await tx.select().from(rotaFixedPatterns);
+    const fixedPatterns: FixedPatternMap = {};
+    for (const row of fixedPatternRows) {
+      fixedPatterns[`${row.staffId}|${row.dayOfWeek}`] = { kind: row.kind as "shift" | "code", shiftKey: row.shiftKey, code: row.code };
+    }
+
     const [existingWeek] = await tx.select().from(rotaWeeks).where(eq(rotaWeeks.weekStart, weekStart)).limit(1);
     const week = existingWeek ?? (await tx.insert(rotaWeeks).values({ tenantId: tenant.id, weekStart }).returning())[0];
 
@@ -61,7 +67,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ wee
           : { kind: "code", code: row.code!, locked: true };
     }
 
-    const { assignments, unfilled } = generateRota({ staff, shifts, availability, demand, locked, seed });
+    const { assignments, unfilled } = generateRota({ staff, shifts, availability, demand, locked, fixedPatterns, seed });
 
     await tx.delete(rotaAssignments).where(eq(rotaAssignments.weekId, week.id));
     const values = Object.entries(assignments).map(([key, a]) => {
