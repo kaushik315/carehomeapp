@@ -44,6 +44,7 @@ export const rotaStaff = pgTable(
     contractHours: numeric("contract_hours", { precision: 5, scale: 2 }).notNull().default("37.5"),
     maxDays: smallint("max_days").notNull().default(5),
     schedulingMode: text("scheduling_mode").notNull().default("generated"),
+    eligibleShifts: jsonb("eligible_shifts").notNull().default([]),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
