@@ -13,7 +13,7 @@ import {
   ChevronLeft, ChevronRight, Plus, X, Wand2, Lock, Unlock, Shuffle,
   AlertTriangle, Users, CalendarRange, Sliders, Printer, RotateCcw, Moon, Info, LogOut,
 } from "lucide-react";
-import { DAYS, SHORT_DAYS, ROLES, LEAVE_CODES, type RotaConfig, type WeekData, type AssignmentValue, type StaffMember, type ShiftDef } from "@/lib/rota/types";
+import { DAYS, SHORT_DAYS, ROLES, LEAVE_CODES, type RotaConfig, type WeekData, type AssignmentValue, type StaffMember, type ShiftDef, type FixedPatternMap } from "@/lib/rota/types";
 import { mondayOf, addDays, weekKey, ddmm, toMin, shiftHours, shortTime, shiftLabel } from "@/lib/rota/date-utils";
 
 const T = {
@@ -165,6 +165,15 @@ export default function RotaBuilderPage() {
     }
   };
 
+  const setFixedPattern = async (staffId: string, day: number, entry: { kind: "shift" | "code"; shiftKey?: string; code?: string }, applyToWeek = false) => {
+    try {
+      await api("/api/rota/fixed-pattern", { method: "PUT", body: JSON.stringify({ staffId, day, ...entry, applyToWeek }) });
+      await loadConfig();
+    } catch (e) {
+      flash(e instanceof Error ? e.message : "Could not save.");
+    }
+  };
+
   const setDemand = async (day: number, shiftKey: string, headcount: number, applyToWeek = false) => {
     try {
       await api("/api/rota/demand", { method: "PUT", body: JSON.stringify({ day, shiftKey, headcount, applyToWeek }) });
@@ -257,7 +266,9 @@ export default function RotaBuilderPage() {
             onEdit={setEditing} openStaff={() => setStaffPanel(true)} setOnCall={setOnCall} unlockAll={unlockAll}
           />
         )}
-        {tab === "availability" && <AvailabilityTab config={config} staff={staff} setAvailability={setAvailability} openStaff={() => setStaffPanel(true)} />}
+        {tab === "availability" && (
+          <AvailabilityTab config={config} staff={staff} setAvailability={setAvailability} setFixedPattern={setFixedPattern} openStaff={() => setStaffPanel(true)} />
+        )}
         {tab === "cover" && <CoverTab config={config} setDemand={setDemand} />}
       </div>
 
@@ -416,10 +427,11 @@ function RotaTab({
 
 /* ------------------------ AVAILABILITY TAB ------------------------ */
 function AvailabilityTab({
-  config, staff, setAvailability, openStaff,
+  config, staff, setAvailability, setFixedPattern, openStaff,
 }: {
   config: RotaConfig; staff: StaffMember[];
   setAvailability: (staffId: string, day: number, mode: string, shifts: string[], applyToWeek?: boolean) => void;
+  setFixedPattern: (staffId: string, day: number, entry: { kind: "shift" | "code"; shiftKey?: string; code?: string }, applyToWeek?: boolean) => void;
   openStaff: () => void;
 }) {
   const cycle = (staffId: string, day: number) => {
@@ -453,45 +465,101 @@ function AvailabilityTab({
               <span style={{ fontSize: 10, letterSpacing: ".1em", color: T.muted, textTransform: "uppercase" }}>{s.role}</span>
               <span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 12, color: T.muted }}>{s.contractHours}h · max {s.maxDays} days</span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 5 }}>
-              {DAYS.map((_, d) => {
-                const av = config.availability[`${s.id}|${d}`] || { mode: "any" as const, shifts: [] };
-                const tone = av.mode === "off" ? { fg: T.muted, bg: T.paper, bd: T.rule } : av.mode === "shifts" ? { fg: T.night, bg: T.nightBg, bd: T.night } : { fg: T.accent, bg: T.accentBg, bd: T.accent };
-                return (
-                  <div key={d}>
-                    <button
-                      onClick={() => cycle(s.id, d)}
-                      onDoubleClick={() => applyAll(s.id, d)}
-                      title="Tap to change · double tap to copy to the whole week"
-                      style={{ width: "100%", padding: "7px 2px", borderRadius: 6, cursor: "pointer", border: `1px solid ${tone.bd}`, background: tone.bg, color: tone.fg, fontSize: 10.5, fontWeight: 600, letterSpacing: ".06em" }}
-                    >
-                      <div style={{ fontSize: 10, opacity: 0.75 }}>{SHORT_DAYS[d].toUpperCase()}</div>
-                      <div style={{ marginTop: 2 }}>{av.mode === "off" ? "OFF" : av.mode === "any" ? "ANY" : "SOME"}</div>
-                    </button>
-                    {av.mode === "shifts" && (
-                      <div style={{ display: "grid", gap: 2, marginTop: 3 }}>
-                        {config.shifts.map((sh) => {
-                          const on = av.shifts.includes(sh.key);
-                          return (
-                            <button
-                              key={sh.key}
-                              onClick={() => toggleShift(s.id, d, sh.key)}
-                              style={{ fontFamily: MONO, fontSize: 9, padding: "3px 1px", borderRadius: 4, cursor: "pointer", border: `1px solid ${on ? T.night : T.ruleSoft}`, background: on ? T.night : T.surface, color: on ? "#fff" : T.muted }}
-                            >
-                              {shortTime(sh.start)}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            {s.schedulingMode === "generated" && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 5 }}>
+                {DAYS.map((_, d) => {
+                  const av = config.availability[`${s.id}|${d}`] || { mode: "any" as const, shifts: [] };
+                  const tone = av.mode === "off" ? { fg: T.muted, bg: T.paper, bd: T.rule } : av.mode === "shifts" ? { fg: T.night, bg: T.nightBg, bd: T.night } : { fg: T.accent, bg: T.accentBg, bd: T.accent };
+                  return (
+                    <div key={d}>
+                      <button
+                        onClick={() => cycle(s.id, d)}
+                        onDoubleClick={() => applyAll(s.id, d)}
+                        title="Tap to change · double tap to copy to the whole week"
+                        style={{ width: "100%", padding: "7px 2px", borderRadius: 6, cursor: "pointer", border: `1px solid ${tone.bd}`, background: tone.bg, color: tone.fg, fontSize: 10.5, fontWeight: 600, letterSpacing: ".06em" }}
+                      >
+                        <div style={{ fontSize: 10, opacity: 0.75 }}>{SHORT_DAYS[d].toUpperCase()}</div>
+                        <div style={{ marginTop: 2 }}>{av.mode === "off" ? "OFF" : av.mode === "any" ? "ANY" : "SOME"}</div>
+                      </button>
+                      {av.mode === "shifts" && (
+                        <div style={{ display: "grid", gap: 2, marginTop: 3 }}>
+                          {config.shifts.map((sh) => {
+                            const on = av.shifts.includes(sh.key);
+                            return (
+                              <button
+                                key={sh.key}
+                                onClick={() => toggleShift(s.id, d, sh.key)}
+                                style={{ fontFamily: MONO, fontSize: 9, padding: "3px 1px", borderRadius: 4, cursor: "pointer", border: `1px solid ${on ? T.night : T.ruleSoft}`, background: on ? T.night : T.surface, color: on ? "#fff" : T.muted }}
+                              >
+                                {shortTime(sh.start)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {s.schedulingMode === "fixed" && (
+              <FixedPatternGrid staffId={s.id} shifts={config.shifts} patterns={config.fixedPatterns} setFixedPattern={setFixedPattern} />
+            )}
+            {s.schedulingMode === "manual" && (
+              <p style={{ fontSize: 12.5, color: T.muted, lineHeight: 1.5, margin: 0 }}>
+                The solver never assigns them — Sumy fills every cell by hand each week.
+              </p>
+            )}
           </div>
         ))}
       </div>
     </>
+  );
+}
+
+function FixedPatternGrid({
+  staffId, shifts, patterns, setFixedPattern,
+}: {
+  staffId: string; shifts: ShiftDef[]; patterns: FixedPatternMap;
+  setFixedPattern: (staffId: string, day: number, entry: { kind: "shift" | "code"; shiftKey?: string; code?: string }, applyToWeek?: boolean) => void;
+}) {
+  const options: { value: string; label: string }[] = [
+    { value: "code:D/O", label: "D/O — day off" },
+    ...shifts.map((sh) => ({ value: `shift:${sh.key}`, label: shiftLabel(sh) })),
+    ...Object.entries(LEAVE_CODES).map(([code, name]) => ({ value: `code:${code}`, label: name })),
+  ];
+
+  const valueFor = (day: number) => {
+    const p = patterns[`${staffId}|${day}`];
+    if (!p) return "code:D/O";
+    return p.kind === "shift" ? `shift:${p.shiftKey}` : `code:${p.code}`;
+  };
+
+  const change = (day: number, raw: string, applyToWeek = false) => {
+    const [kind, value] = raw.split(":");
+    if (kind === "shift") setFixedPattern(staffId, day, { kind: "shift", shiftKey: value }, applyToWeek);
+    else setFixedPattern(staffId, day, { kind: "code", code: value }, applyToWeek);
+  };
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 5 }}>
+      {DAYS.map((_, d) => (
+        <div key={d}>
+          <div style={{ fontSize: 10, opacity: 0.75, textAlign: "center", marginBottom: 3, color: T.muted }}>{SHORT_DAYS[d].toUpperCase()}</div>
+          <select
+            value={valueFor(d)}
+            onChange={(e) => change(d, e.target.value)}
+            onDoubleClick={() => change(d, valueFor(d), true)}
+            title="Pick what they do this day · double click to copy to the whole week"
+            style={{ width: "100%", fontFamily: MONO, fontSize: 10, padding: "5px 2px", borderRadius: 6, border: `1px solid ${T.rule}`, background: T.surface, color: T.ink, cursor: "pointer" }}
+          >
+            {options.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+      ))}
+    </div>
   );
 }
 
