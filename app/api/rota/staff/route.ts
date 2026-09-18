@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   const staff = await withTenant(tenant.id, async (tx) => {
     const [staff] = await tx
       .insert(rotaStaff)
-      .values({ tenantId: tenant.id, name, role, contractHours: "30", maxDays: 5, officeHours: false })
+      .values({ tenantId: tenant.id, name, role, contractHours: "30", maxDays: 5 })
       .returning();
 
     await tx.insert(rotaAvailability).values(
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     role: staff.role,
     contractHours: Number(staff.contractHours),
     maxDays: staff.maxDays,
-    officeHours: staff.officeHours,
+    schedulingMode: staff.schedulingMode,
     isActive: staff.isActive,
   });
 }

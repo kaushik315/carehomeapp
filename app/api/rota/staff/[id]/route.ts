@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { withTenant } from "@/lib/db/client";
 import { getDefaultTenant } from "@/lib/rota/tenant";
 import { rotaStaff } from "@/db/schema/rota";
+import { ROLES } from "@/lib/rota/types";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,7 +14,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const patch: Partial<typeof rotaStaff.$inferInsert> = {};
   if (typeof body.isActive === "boolean") patch.isActive = body.isActive;
-  if (typeof body.officeHours === "boolean") patch.officeHours = body.officeHours;
+  if (typeof body.role === "string" && ROLES.includes(body.role)) patch.role = body.role;
+  if (typeof body.schedulingMode === "string" && ["generated", "fixed", "manual"].includes(body.schedulingMode)) {
+    patch.schedulingMode = body.schedulingMode;
+  }
   if (typeof body.contractHours === "number" && body.contractHours >= 0) patch.contractHours = body.contractHours.toString();
   if (typeof body.maxDays === "number" && body.maxDays >= 0) patch.maxDays = body.maxDays;
 
@@ -36,7 +40,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     role: staff.role,
     contractHours: Number(staff.contractHours),
     maxDays: staff.maxDays,
-    officeHours: staff.officeHours,
+    schedulingMode: staff.schedulingMode,
     isActive: staff.isActive,
   });
 }
