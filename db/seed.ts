@@ -11,7 +11,8 @@
 import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { tenants } from "@/db/schema/foundation";
-import { rotaShiftDefinitions, rotaStaff, rotaAvailability, rotaDemand } from "@/db/schema/rota";
+import { rotaShiftDefinitions, rotaStaff, rotaAvailability, rotaDemand, rotaFixedPatterns } from "@/db/schema/rota";
+import type { SchedulingMode } from "@/lib/rota/types";
 
 const TENANT_SLUG = process.env.DEFAULT_TENANT_SLUG ?? "linkfield";
 
@@ -20,27 +21,42 @@ const SHIFTS = [
   { key: "mid", name: "Mid", startTime: "13:00", endTime: "21:00", sortOrder: 1 },
   { key: "back", name: "Back", startTime: "15:00", endTime: "23:00", sortOrder: 2 },
   { key: "night", name: "Night", startTime: "21:00", endTime: "07:00", sortOrder: 3 },
+  { key: "dom", name: "Dom", startTime: "09:00", endTime: "13:00", sortOrder: 4 },
 ];
 
-// [name, role, contractHours, officeHours]
-const SEED_STAFF: [string, string, number, boolean][] = [
-  ["Sumy", "Manager", 37.5, true],
-  ["Tracey", "Deputy", 37.5, false],
-  ["Eliza", "SCO", 37.5, false],
-  ["Roma", "CO", 24, false],
-  ["Ayo", "CO", 37.5, false],
-  ["Olu", "CO", 37.5, false],
-  ["Janet", "CO", 30, false],
-  ["Vincent", "CO", 18, false],
-  ["Kaushik", "CO", 16, false],
-  ["Victoria", "CO", 20, false],
-  ["Raghul", "BCO", 30, false],
-  ["Ola", "BCO", 10, false],
-  ["Divin", "BCO", 24, false],
-  ["Esther", "WCO", 30, false],
-  ["Brian K", "Kitchen", 24, false],
-  ["Gail", "Dom", 20, false],
+// [name, role, contractHours, schedulingMode]
+const SEED_STAFF: [string, string, number, SchedulingMode][] = [
+  ["Sumy", "Manager", 37.5, "fixed"],
+  ["Tracey", "Deputy", 37.5, "generated"],
+  ["Eliza", "SCO", 37.5, "generated"],
+  ["Roma", "CO", 24, "generated"],
+  ["Ayo", "CO", 37.5, "generated"],
+  ["Olu", "CO", 37.5, "generated"],
+  ["Janet", "CO", 30, "generated"],
+  ["Vincent", "CO", 18, "generated"],
+  ["Kaushik", "CO", 16, "generated"],
+  ["Victoria", "CO", 20, "generated"],
+  ["Raghul", "BCO", 30, "generated"],
+  ["Ola", "BCO", 10, "generated"],
+  ["Divin", "BCO", 24, "generated"],
+  ["Esther", "WCO", 30, "generated"],
+  ["Brian K", "Driver", 24, "manual"],
+  ["Gail", "Dom", 20, "fixed"],
 ];
+
+// Weekly pattern for staff seeded as scheduling_mode = 'fixed'.
+type FixedPatternSeedEntry = { day: number; kind: "shift" | "code"; shiftKey?: string; code?: string };
+
+const FIXED_PATTERNS: Record<string, FixedPatternSeedEntry[]> = {
+  Sumy: [
+    ...[0, 1, 2, 3, 4].map((day): FixedPatternSeedEntry => ({ day, kind: "code", code: "IN" })),
+    ...[5, 6].map((day): FixedPatternSeedEntry => ({ day, kind: "code", code: "D/O" })),
+  ],
+  Gail: [
+    ...[0, 1, 2, 3, 4].map((day): FixedPatternSeedEntry => ({ day, kind: "shift", shiftKey: "dom" })),
+    ...[5, 6].map((day): FixedPatternSeedEntry => ({ day, kind: "code", code: "D/O" })),
+  ],
+};
 
 // day-of-week: 0 = Monday .. 6 = Sunday, matching the prototype.
 function availabilityFor(name: string, role: string, day: number) {
@@ -80,7 +96,7 @@ async function main() {
   }
   console.log(`shifts: ${SHIFTS.length}`);
 
-  for (const [name, role, contractHours, officeHours] of SEED_STAFF) {
+  for (const [name, role, contractHours, schedulingMode] of SEED_STAFF) {
     const existing = await db
       .select({ id: rotaStaff.id })
       .from(rotaStaff)
@@ -97,7 +113,7 @@ async function main() {
             name,
             role,
             contractHours: contractHours.toString(),
-            officeHours,
+            schedulingMode,
             maxDays: 5,
           })
           .returning({ id: rotaStaff.id })
@@ -111,6 +127,23 @@ async function main() {
         .onConflictDoUpdate({
           target: [rotaAvailability.staffId, rotaAvailability.dayOfWeek],
           set: { mode: av.mode, shiftKeys: av.shiftKeys },
+        });
+    }
+
+    for (const p of FIXED_PATTERNS[name] ?? []) {
+      await db
+        .insert(rotaFixedPatterns)
+        .values({
+          tenantId: tenant.id,
+          staffId,
+          dayOfWeek: p.day,
+          kind: p.kind,
+          shiftKey: p.kind === "shift" ? p.shiftKey! : null,
+          code: p.kind === "code" ? p.code! : null,
+        })
+        .onConflictDoUpdate({
+          target: [rotaFixedPatterns.staffId, rotaFixedPatterns.dayOfWeek],
+          set: { kind: p.kind, shiftKey: p.kind === "shift" ? p.shiftKey! : null, code: p.kind === "code" ? p.code! : null },
         });
     }
   }
