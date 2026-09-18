@@ -58,6 +58,13 @@ const FIXED_PATTERNS: Record<string, FixedPatternSeedEntry[]> = {
   ],
 };
 
+function eligibleShiftsFor(name: string): string[] {
+  const shiftKeys = SHIFTS.map((s) => s.key);
+  if (name === "Esther" || name === "Ola") return ["night"];
+  if (name === "Ayo" || name === "Victoria") return shiftKeys;
+  return shiftKeys.filter((k) => k !== "night");
+}
+
 // day-of-week: 0 = Monday .. 6 = Sunday, matching the prototype.
 function availabilityFor(name: string, role: string, day: number) {
   if (role === "WCO") return { mode: "shifts" as const, shiftKeys: ["night"] };
@@ -114,6 +121,7 @@ async function main() {
             role,
             contractHours: contractHours.toString(),
             schedulingMode,
+            eligibleShifts: eligibleShiftsFor(name),
             maxDays: 5,
           })
           .returning({ id: rotaStaff.id })
