@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
 import { withTenant } from "@/lib/db/client";
 import { getDefaultTenant } from "@/lib/rota/tenant";
-import { rotaStaff, rotaAvailability } from "@/db/schema/rota";
+import { rotaStaff, rotaAvailability, rotaShiftDefinitions } from "@/db/schema/rota";
 import { ROLES } from "@/lib/rota/types";
 
 export async function POST(req: NextRequest) {
@@ -15,9 +16,12 @@ export async function POST(req: NextRequest) {
   const tenant = await getDefaultTenant();
 
   const staff = await withTenant(tenant.id, async (tx) => {
+    const activeShifts = await tx.select().from(rotaShiftDefinitions).where(eq(rotaShiftDefinitions.isActive, true));
+    const defaultEligible = activeShifts.map((s) => s.key).filter((k) => k !== "night");
+
     const [staff] = await tx
       .insert(rotaStaff)
-      .values({ tenantId: tenant.id, name, role, contractHours: "30", maxDays: 5 })
+      .values({ tenantId: tenant.id, name, role, contractHours: "30", maxDays: 5, eligibleShifts: defaultEligible })
       .returning();
 
     await tx.insert(rotaAvailability).values(
@@ -40,6 +44,7 @@ export async function POST(req: NextRequest) {
     contractHours: Number(staff.contractHours),
     maxDays: staff.maxDays,
     schedulingMode: staff.schedulingMode,
+    eligibleShifts: staff.eligibleShifts,
     isActive: staff.isActive,
   });
 }

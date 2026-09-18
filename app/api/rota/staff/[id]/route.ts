@@ -18,6 +18,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (typeof body.schedulingMode === "string" && ["generated", "fixed", "manual"].includes(body.schedulingMode)) {
     patch.schedulingMode = body.schedulingMode;
   }
+  if (Array.isArray(body.eligibleShifts) && body.eligibleShifts.every((k: unknown) => typeof k === "string")) {
+    patch.eligibleShifts = body.eligibleShifts;
+  }
   if (typeof body.contractHours === "number" && body.contractHours >= 0) patch.contractHours = body.contractHours.toString();
   if (typeof body.maxDays === "number" && body.maxDays >= 0) patch.maxDays = body.maxDays;
 
@@ -41,6 +44,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     contractHours: Number(staff.contractHours),
     maxDays: staff.maxDays,
     schedulingMode: staff.schedulingMode,
+    eligibleShifts: staff.eligibleShifts,
     isActive: staff.isActive,
   });
 }
