@@ -56,7 +56,8 @@ clever ones. No architecture that requires a team to maintain.
 Real vocabulary from the home — use it in the UI, don't invent synonyms:
 
 - **Roles:** Manager, Deputy, SCO (Senior Care Officer), CO (Care Officer),
-  BCO (Bank Care Officer), WCO (Waking Night Officer), Dom (Domestic), Kitchen.
+  BCO (Bank Care Officer), WCO (Waking Night Officer), Dom (Domestic), Kitchen,
+  Driver.
 - **Rota codes:** `D/O` day off · `AL` annual leave · `S/O` sleepover (stays on site
   until 07:00, paid differently from worked hours — track separately) · `IN` office
   hours · `SL` sick · `TR` training.

@@ -9,15 +9,26 @@ export interface ShiftDef {
   end: string; // "HH:MM"
 }
 
+export type SchedulingMode = "generated" | "fixed" | "manual";
+
 export interface StaffMember {
   id: string;
   name: string;
   role: string;
   contractHours: number;
   maxDays: number;
-  officeHours: boolean;
+  schedulingMode: SchedulingMode;
   isActive: boolean;
 }
+
+export interface FixedPatternEntry {
+  kind: "shift" | "code";
+  shiftKey: string | null;
+  code: string | null;
+}
+
+// key: `${staffId}|${day}`
+export type FixedPatternMap = Record<string, FixedPatternEntry>;
 
 export interface Availability {
   mode: AvailabilityMode;
@@ -58,6 +69,7 @@ export interface RotaConfig {
   staff: StaffMember[];
   availability: AvailabilityMap;
   demand: DemandMap;
+  fixedPatterns: FixedPatternMap;
 }
 
 export const LEAVE_CODES: Record<string, string> = {
@@ -68,4 +80,4 @@ export const LEAVE_CODES: Record<string, string> = {
 
 export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 export const SHORT_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-export const ROLES = ["Manager", "Deputy", "SCO", "CO", "BCO", "WCO", "Kitchen", "Dom"];
+export const ROLES = ["Manager", "Deputy", "SCO", "CO", "BCO", "WCO", "Kitchen", "Dom", "Driver"];
